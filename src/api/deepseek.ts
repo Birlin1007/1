@@ -1,4 +1,4 @@
-import { DEEPSEEK_CONFIG, COPYWRITING_STYLES, type CopywritingStyle } from './config';
+import { DEEPSEEK_BASE_URL, COPYWRITING_STYLES, type CopywritingStyle } from './config';
 
 export interface GenerateCopyRequest {
   productName: string;
@@ -84,16 +84,10 @@ function buildUserPrompt(params: GenerateCopyRequest): string {
 export async function generateCopyWithDeepSeek(
   params: GenerateCopyRequest
 ): Promise<GenerateCopyResponse> {
-  const apiKey = DEEPSEEK_CONFIG.apiKey;
-
-  if (!apiKey) {
-    throw new Error('未配置 DeepSeek API Key，请在 .env 文件中设置 VITE_DEEPSEEK_API_KEY');
-  }
-
   const styleConfig = COPYWRITING_STYLES.find(s => s.id === params.style) || COPYWRITING_STYLES[0];
 
   const requestBody: DeepSeekRequest = {
-    model: DEEPSEEK_CONFIG.model,
+    model: 'deepseek-chat',
     messages: [
       {
         role: 'system',
@@ -110,14 +104,13 @@ export async function generateCopyWithDeepSeek(
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DEEPSEEK_CONFIG.timeout);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch(`${DEEPSEEK_CONFIG.baseURL}/chat/completions`, {
+    const response = await fetch(DEEPSEEK_BASE_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,

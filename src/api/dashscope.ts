@@ -1,27 +1,12 @@
 // 阿里云 DashScope 通义千问 API 配置
-// 支持两种配置方式（优先级从高到低）：
-// 1. 在应用设置面板中输入（存储在 localStorage）
-// 2. 环境变量 VITE_DASHSCOPE_API_KEY
-
-function getApiKey(): string {
-  if (typeof window !== 'undefined') {
-    const localKey = localStorage.getItem('dashscope_api_key');
-    if (localKey) return localKey;
-  }
-  return import.meta.env.VITE_DASHSCOPE_API_KEY || '';
-}
+// 前端不再直接调用 DashScope，而是通过 /api/generate-image 和 /api/chat 代理
+// API Key 只存在于服务端（Vercel 环境变量），前端完全看不到
 
 export const DASHSCOPE_CONFIG = {
-  // 开发环境使用 Vite 代理，生产环境使用直接地址
-  // 图片生成使用原生异步接口 /api/v1
-  imageBaseURL: import.meta.env.DEV ? '/api/dashscope-img' : 'https://dashscope.aliyuncs.com/api/v1',
-  // 对话使用兼容模式 /compatible-mode/v1
-  chatBaseURL: import.meta.env.DEV ? '/api/dashscope-chat' : 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  // 文生图模型（异步调用）
+  imageBaseURL: '/api/generate-image',
+  chatBaseURL: '/api/chat',
   imageModel: 'wanx2.1-t2i-plus',
-  // 对话模型
   chatModel: 'qwen-plus',
-  get apiKey() { return getApiKey(); },
   timeout: 120000,
 } as const;
 
@@ -162,11 +147,6 @@ interface TaskResultResponse {
 export async function generateImageWithDashScope(
   params: GenerateImageRequest
 ): Promise<GenerateImageResponse> {
-  const apiKey = DASHSCOPE_CONFIG.apiKey;
-
-  if (!apiKey) {
-    throw new Error('未配置 DashScope API Key，请在设置中配置');
-  }
 
   // 根据场景添加风格提示词
   const sceneConfig = params.scene ? IMAGE_SCENES.find(s => s.id === params.scene) : undefined;
@@ -187,16 +167,14 @@ export async function generateImageWithDashScope(
   };
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DASHSCOPE_CONFIG.timeout);
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
 
   try {
     // 创建任务
-    const createResponse = await fetch(`${DASHSCOPE_CONFIG.imageBaseURL}/services/aigc/text2image/image-synthesis`, {
+    const createResponse = await fetch(DASHSCOPE_CONFIG.imageBaseURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'X-DashScope-Async': 'enable',
       },
       body: JSON.stringify(createTaskBody),
       signal: controller.signal,
@@ -219,12 +197,7 @@ export async function generateImageWithDashScope(
     for (let i = 0; i < maxRetries; i++) {
       await new Promise(resolve => setTimeout(resolve, pollInterval));
 
-      const pollResponse = await fetch(`${DASHSCOPE_CONFIG.imageBaseURL}/tasks/${taskId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
-      });
+      const pollResponse = await fetch(`/api/image-task?taskId=${taskId}`);
 
       if (!pollResponse.ok) {
         continue; // 轮询失败继续下一次
@@ -268,28 +241,22 @@ export async function chatWithQwen(
   messages: Array<{ role: 'system' | 'user'; content: string }>,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const apiKey = DASHSCOPE_CONFIG.apiKey;
-
-  if (!apiKey) {
-    throw new Error('未配置 DashScope API Key，请在设置中配置');
-  }
-
   const requestBody = {
-    model: DASHSCOPE_CONFIG.chatModel,
+    model: 'deepseek-chat',
     messages,
     temperature: options?.temperature ?? 0.7,
     max_tokens: options?.maxTokens ?? 1024,
+    stream: false,
   };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const response = await fetch(`${DASHSCOPE_CONFIG.chatBaseURL}/chat/completions`, {
+    const response = await fetch('/api/generate-copy', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,

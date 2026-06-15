@@ -20,6 +20,10 @@
   .glass-strong {
     @apply bg-white/85 backdrop-blur-xl border border-white/60 shadow-md;
   }
+
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 @keyframes shimmer {

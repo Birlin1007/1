@@ -1,29 +1,7 @@
 // DeepSeek API 配置
-// 支持两种配置方式（优先级从高到低）：
-// 1. 在应用设置面板中输入（存储在 localStorage）
-// 2. 环境变量 VITE_DEEPSEEK_API_KEY
+// 前端通过 Vercel Edge Function 代理调用，无需在前端暴露 API Key
 
-function getApiKey(): string {
-  // 优先从 localStorage 读取（用户在设置面板中配置的）
-  if (typeof window !== 'undefined') {
-    const localKey = localStorage.getItem('deepseek_api_key');
-    if (localKey) return localKey;
-  }
-  // 其次从环境变量读取
-  return import.meta.env.VITE_DEEPSEEK_API_KEY || '';
-}
-
-export const DEEPSEEK_CONFIG = {
-  // 开发环境使用 Vite 代理，生产环境使用直接地址
-  baseURL: import.meta.env.DEV ? '/api/deepseek' : 'https://api.deepseek.com/v1',
-  model: 'deepseek-chat',
-  // 动态获取 API Key
-  get apiKey() { return getApiKey(); },
-  // 请求超时时间（毫秒）
-  timeout: 30000,
-  // 最大重试次数
-  maxRetries: 2,
-} as const;
+export const DEEPSEEK_BASE_URL = '/api/generate-copy';
 
 // 文案生成风格配置
 export type CopywritingStyle =

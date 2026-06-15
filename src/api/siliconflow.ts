@@ -1,21 +1,10 @@
 // SiliconFlow VLM API 配置
-// 支持两种配置方式（优先级从高到低）：
-// 1. 在应用设置面板中输入（存储在 localStorage）
-// 2. 环境变量 VITE_SILICONFLOW_API_KEY
-
-function getApiKey(): string {
-  if (typeof window !== 'undefined') {
-    const localKey = localStorage.getItem('siliconflow_api_key');
-    if (localKey) return localKey;
-  }
-  return import.meta.env.VITE_SILICONFLOW_API_KEY || '';
-}
+// 前端不再直接调用 SiliconFlow，而是通过 /api/analyze-image 代理
+// API Key 只存在于服务端（Vercel 环境变量），前端完全看不到
 
 export const SILICONFLOW_CONFIG = {
-  // 开发环境使用 Vite 代理，生产环境使用直接地址
-  baseURL: import.meta.env.DEV ? '/api/siliconflow' : 'https://api.siliconflow.cn/v1',
+  baseURL: '/api/analyze-image',
   model: 'Qwen/Qwen3-VL-8B-Instruct',
-  get apiKey() { return getApiKey(); },
   timeout: 60000,
 } as const;
 
@@ -108,11 +97,6 @@ export function urlToBase64(url: string): Promise<string> {
 export async function analyzeImageForEcommerce(
   imageBase64: string
 ): Promise<ImageAnalysisResult> {
-  const apiKey = SILICONFLOW_CONFIG.apiKey;
-
-  if (!apiKey) {
-    throw new Error('未配置 SiliconFlow API Key，请在设置中配置');
-  }
 
   const systemPrompt = `你是一位专业的跨境电商商品分析专家，擅长通过商品图片分析产品特征并生成高质量的电商文案。
 
@@ -162,11 +146,10 @@ export async function analyzeImageForEcommerce(
   const timeoutId = setTimeout(() => controller.abort(), SILICONFLOW_CONFIG.timeout);
 
   try {
-    const response = await fetch(`${SILICONFLOW_CONFIG.baseURL}/chat/completions`, {
+    const response = await fetch(SILICONFLOW_CONFIG.baseURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal,
